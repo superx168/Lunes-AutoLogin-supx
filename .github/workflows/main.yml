@@ -20,13 +20,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Setup local HTTP proxy via gost
+        run: |
+          # Download gost
+          GOST_VER=2.12.0
+          wget -q "https://github.com/ginuerzh/gost/releases/download/v${GOST_VER}/gost-linux-amd64-${GOST_VER}.tgz"
+          tar xzf gost-linux-amd64-${GOST_VER}.tgz
+          mv gost /usr/local/bin/gost
+          chmod +x /usr/local/bin/gost
+          # Start gost: local HTTP proxy -> upstream SOCKS5
+          nohup gost -L http://:8888 -F socks5://${{ secrets.PROXY_URL }} > /tmp/gost.log 2>&1 &
+          sleep 3
+          # Test proxy
+          curl -s --proxy http://127.0.0.1:8888 https://httpbin.org/ip || echo "Proxy test via gost failed"
+
       - name: Install deps
         run: pip install --no-cache-dir -r requirements.txt
 
       - name: Run login
         env:
           ACCOUNTS_BATCH: ${{ secrets.ACCOUNTS_BATCH }}
-          PROXY_URL: ${{ secrets.PROXY_URL }}
+          PROXY_URL: http://127.0.0.1:8888
         run: python login.py
 
       - name: Upload screenshots
