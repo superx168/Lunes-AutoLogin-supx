@@ -1,4 +1,4 @@
-"""Lunes Host 自动登录 - CloakBrowser + SOCKS proxy"""
+"""Lunes Host 自动登录 - CloakBrowser + gost proxy"""
 import os, sys, time, requests
 
 LOGIN_URL = "https://betadash.lunes.host/login"
@@ -38,16 +38,13 @@ def login_one(email, password):
     from cloakbrowser import launch
     
     proxy = os.getenv("PROXY_URL", "")
-    print(f"Proxy: {'set' if proxy else 'none'}")
+    print(f"Proxy: {proxy}")
     
-    kwargs = {
-        "humanize": True,
-        "geoip": True,
-    }
-    if proxy:
-        kwargs["proxy"] = proxy
-    
-    browser = launch(**kwargs)
+    browser = launch(
+        proxy=proxy,
+        humanize=True,
+        geoip=True,
+    )
     
     try:
         page = browser.new_page()
@@ -55,12 +52,10 @@ def login_one(email, password):
         page.goto(LOGIN_URL, timeout=60000)
         time.sleep(5)
         
-        # Fill form
         page.wait_for_selector("#email", state="visible", timeout=25000)
         page.fill("#email", email)
         page.fill("#password", password)
         
-        # Wait for Turnstile
         print("Waiting for Turnstile...")
         for i in range(30):
             time.sleep(2)
