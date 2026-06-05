@@ -1,5 +1,5 @@
 """Lunes Host 自动登录 - nodriver"""
-import os, sys, time, asyncio, requests
+import os, sys, time, asyncio, requests, shutil
 
 LOGIN_URL = "https://betadash.lunes.host/login"
 
@@ -34,12 +34,27 @@ def build_accounts():
             })
     return accounts
 
+def find_chrome():
+    for p in ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"]:
+        if os.path.exists(p):
+            return p
+    for p in ["/snap/chromium/current/usr/lib/chromium-browser/chrome", "/snap/bin/chromium"]:
+        if os.path.exists(p):
+            return p
+    found = shutil.which("chromium-browser") or shutil.which("chromium") or shutil.which("google-chrome")
+    return found
+
 async def login_one(email, password):
     import nodriver as uc
+    
+    chrome_path = find_chrome()
+    print(f"Chrome path: {chrome_path}")
     
     config = uc.Config()
     config.no_sandbox = True
     config.headless = True
+    if chrome_path:
+        config.browser_executable_path = chrome_path
     
     browser = await uc.start(config)
     
@@ -47,17 +62,14 @@ async def login_one(email, password):
         page = await browser.get(LOGIN_URL)
         await asyncio.sleep(5)
         
-        # Fill email
         email_input = await page.select("#email", timeout=20000)
         await email_input.clear_input()
         await email_input.send_keys(email)
         
-        # Fill password
         pass_input = await page.select("#password", timeout=10000)
         await pass_input.clear_input()
         await pass_input.send_keys(password)
         
-        # Wait for Turnstile to auto-solve
         print("Waiting for Turnstile...")
         for i in range(30):
             await asyncio.sleep(2)
@@ -71,7 +83,6 @@ async def login_one(email, password):
         else:
             print("Turnstile timeout, trying submit anyway...")
         
-        # Submit
         btn = await page.select('button[type="submit"]', timeout=5000)
         await btn.click()
         await asyncio.sleep(5)
@@ -92,6 +103,8 @@ async def login_one(email, password):
             return False
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
     finally:
         browser.stop()
