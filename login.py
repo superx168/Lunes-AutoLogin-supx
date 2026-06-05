@@ -1,4 +1,4 @@
-"""Lunes Host 自动登录 - nodriver (anti-Cloudflare)"""
+"""Lunes Host 自动登录 - nodriver"""
 import os, sys, time, asyncio, requests
 
 LOGIN_URL = "https://betadash.lunes.host/login"
@@ -7,13 +7,6 @@ def tg_send(text, token="", chat_id=""):
     token, chat_id = (token or "").strip(), (chat_id or "").strip()
     if not token or not chat_id:
         return
-    try:
-        requests.post(
-            f"https://api.github.com/repos/btpp03/Lunes-AutoLogin/actions/secrets/public-key",
-            timeout=15
-        )
-    except:
-        pass
     try:
         requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -44,14 +37,11 @@ def build_accounts():
 async def login_one(email, password):
     import nodriver as uc
     
-    browser = await uc.start(
-        headless=True,
-        browser_args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--window-size=1920,1080",
-        ]
-    )
+    config = uc.Config()
+    config.no_sandbox = True
+    config.headless = True
+    
+    browser = await uc.start(config)
     
     try:
         page = await browser.get(LOGIN_URL)
@@ -72,7 +62,6 @@ async def login_one(email, password):
         for i in range(30):
             await asyncio.sleep(2)
             try:
-                # Check if Turnstile token is filled
                 val = await page.evaluate('document.querySelector("[name=cf-turnstile-response]")?.value || ""')
                 if val:
                     print(f"Turnstile solved! ({i*2}s)")
@@ -80,33 +69,29 @@ async def login_one(email, password):
             except:
                 pass
         else:
-            print("Turnstile timeout")
+            print("Turnstile timeout, trying submit anyway...")
         
         # Submit
         btn = await page.select('button[type="submit"]', timeout=5000)
         await btn.click()
         await asyncio.sleep(5)
         
-        # Check result
         url = page.url
         if "/login" not in url:
-            print(f"✅ Login success: {url}")
-            
-            # Visit server pages
+            print(f"Login success: {url}")
             for sid in ["51160", "60685"]:
                 try:
-                    svr = await browser.get(f"https://betadash.lunes.host/servers/{sid}")
+                    await browser.get(f"https://betadash.lunes.host/servers/{sid}")
                     await asyncio.sleep(3)
-                    print(f"  ✅ Visited server {sid}")
+                    print(f"  Visited server {sid}")
                 except Exception as e:
-                    print(f"  ⚠️ Server {sid}: {e}")
-            
+                    print(f"  Server {sid}: {e}")
             return True
         else:
-            print(f"❌ Login failed, still on: {url}")
+            print(f"Login failed, still on: {url}")
             return False
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return False
     finally:
         browser.stop()
@@ -125,10 +110,10 @@ async def main():
         success = await login_one(email, acc["password"])
         if success:
             ok += 1
-            results.append(f"✅ {email}")
+            results.append(f"OK {email}")
         else:
             fail += 1
-            results.append(f"❌ {email}")
+            results.append(f"FAIL {email}")
         
         tg_send(
             f"{'✅' if success else '❌'} Lunes {'登录成功' if success else '登录失败'}\n{email}",
